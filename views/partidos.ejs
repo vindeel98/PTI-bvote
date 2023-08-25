@@ -1,0 +1,216 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width,minimum-scale=1">
+		<title>Menu</title>
+        <!-- the form awesome library is used to add icons to our form -->
+		<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.1/css/all.css">
+        <!-- include the stylesheet file -->
+        <link href="/style.css" rel="stylesheet" type="text/css">
+        
+        <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/brython@3.9/brython.min.js"> </script>
+        <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/brython@3.9/brython_stdlib.js"> </script>
+		
+	</head>
+	<body>
+
+        <div class="login">
+            <p id="demo"><h1>Selecciona el candidat/candidata que t'agradaria escollir. <h1></p>
+            <p id="demo2"><h2>Primerament, introdueix la CLAU PRIVADA que s'ha generat anteriorment. <h2></p>
+            
+            <p id="query"> <%= varToPass2 %></p>
+            <input type="file" id="files" name="files[]" />
+            <output id="list"></output>
+            <p id="demo2"><h3>Ara, selecciona la teva elecció. <h3></p>
+            <div id="buttonsContainer"></div> 
+
+            <script>
+
+                function handleFileSelect(evt) {
+                    var file = evt.target.files; // FileList object
+                    privateKey = file[0];
+                    // files is a FileList of File objects. List some properties.
+                    var output = [];
+    
+                    
+                    output.push('<li><strong>', escape(privateKey.name), '</strong> ', privateKey.size, ' bytes ');
+                    document.getElementById('list').innerHTML = '<ul>' + output.join('') + '</ul>';
+    
+                }
+
+                function ab2str(buf) {
+                    return String.fromCharCode.apply(null, new Uint16Array(buf));
+                }
+
+                function str2ab(str) {
+                    const buf = new ArrayBuffer(str.length);
+                    const bufView = new Uint8Array(buf);
+                    for (let i = 0, strLen = str.length; i < strLen; i++) {
+                    bufView[i] = str.charCodeAt(i);
+                    }
+                    return buf;
+                }
+    
+                function getMessageEncoding() {
+                    const messageBox = document.querySelector(".rsassa-pkcs1 #message");
+                    let message = "signature"
+                    let enc = new TextEncoder();
+                    return enc.encode(message);
+                }
+
+                function importPrivateKey(pem) {
+                    // fetch the part of the PEM string between header and footer
+                    const pemHeader = "-----BEGIN PRIVATE KEY-----";
+                    const pemFooter = "-----END PRIVATE KEY-----";
+                    const pemContents = pem.substring(pemHeader.length, pem.length - pemFooter.length);
+                    console.log(pemContents.length);
+                    console.log(pemContents);
+                    // base64 decode the string to get the binary data
+                    const binaryDerString = window.atob(pemContents);
+                    // convert from a binary string to an ArrayBuffer
+                    const binaryDer = str2ab(binaryDerString);
+
+                    return window.crypto.subtle.importKey(
+                    "pkcs8",
+                    binaryDer,
+                    {
+                        name: "RSASSA-PKCS1-v1_5",
+                        // Consider using a 4096-bit key for systems that require long-term security
+                        modulusLength: 1024,
+                        publicExponent: new Uint8Array([1, 0, 1]),
+                        hash: "SHA-256",
+                    },
+                    true,
+                    ["sign"]
+                    );
+                }
+
+
+                async function signMessage(signingKey) {
+                    const encoded = getMessageEncoding();
+                    console.log("This is signing key" + signingKey);
+                    console.log("This is encoded" + encoded);
+                    const signature = await window.crypto.subtle.sign(
+                    {
+                        name: "RSASSA-PKCS1-v1_5",
+                        modulusLength: 1024,
+                        publicExponent: new Uint8Array([1, 0, 1]),
+                        hash: "SHA-256"
+                    },
+                    signingKey,
+                    encoded
+                    );
+                    
+                    return buffer = new Uint8Array(signature, 0, signature.length);
+                }
+                    
+    
+                var elementos = document.getElementById("query").innerHTML;
+                console.log(elementos);
+    
+                const buttonsContainer = document.getElementById("buttonsContainer");
+                document.getElementById('files').addEventListener('change', handleFileSelect, false);
+    
+                let word = '';
+                var content;
+                var privateKey="";
+    
+                for (let j = 0; j < elementos.length; ++j){
+                    let letter = elementos.charAt(j);
+                    if (letter != ','){
+                        word += letter;
+                    }
+                    else {  //precondicio: la base de dades ha de acabar amb ',' 
+                        let btn = document.createElement("button");
+                        document.body.appendChild(btn);
+                        btn.innerText = word;
+                        (function(name){
+                            
+                            btn.addEventListener("click",function() {
+                                //SI NO PK -> obligar private key
+    
+                                if (privateKey == "") alert('Introdueixi una PRIVATE KEY. Gràcies!')
+                                else {
+                                    //SI PK -> signar + api blckchain
+    
+                                    console.log("This is the private key" + privateKey);
+                                    const reader = new FileReader();
+                                    reader.readAsArrayBuffer(privateKey);
+                                    
+                                    reader.onload = function(e) {
+                                        var rawLog = reader.result;
+                                        var string_rawLog = new TextDecoder().decode(rawLog);
+                                        
+                                        console.log("This is string_rawLog" + string_rawLog);
+                                        console.log("This is rawLog"+ rawLog);
+                                        
+    
+                                        //console.log(JSON_rawlog.n) 
+                                         //if (string_rawLog.search('-----BEGIN RSA PRIVATE KEY-----') != -1){
+                                        if (1 == 1){
+                                            
+                                            //FIRMAR -> y pasamos firma a /sign
+                                            console.log(privateKey);
+                                            console.log(string_rawLog.length);
+                                                                                                          
+                                            signingKey = importPrivateKey(string_rawLog);
+                                            //console.log(signingKey);
+                                            
+                                            var buffer = "";
+                                            signingKey.then(function(privateKey){
+                                                
+                                                buffer = signMessage(privateKey);
+                                                buffer.then(function(firma){
+                                                    console.log("ENTRA AQUI AUISHDA")
+                                                    console.log("This is firma" + firma);
+                                                    
+                                                    fetch('/sign', {
+                                                        method: 'POST',
+                                                        headers: {
+                                                            'Accept': 'application/json',
+                                                            'Content-Type': 'application/json'},
+                                                        body: JSON.stringify({a:firma, b:name})
+
+                                                        }).then(function(response) {
+                                                            
+                                                            if (response.ok) {
+                                                                window.alert("El teu vot ha estat inserit a la Blockchain correctament!");
+                                                                let newWind = window.open("/menu", "width=full,height=full");
+                                                            }
+
+                                                            else {
+                                                                if (response.status == 400) {
+                                                                    window.alert("La firma no és correcte! ");
+                                                                    let newWind = window.open("/menu", "width=full,height=full");
+                                                                }
+
+                                                                if (response.status == 500) {
+                                                                    window.alert("Hi ha hagut un problema amb el servidor! Torna-ho a intentar!");
+                                                                    let newWind = window.open("/menu", "width=full,height=full");
+                                                                }
+
+                                                            }
+                                                    })
+                                                })
+                                            })
+    
+                                        }
+    
+                                        else {
+                                            alert('Introdueixi un fitxer que sigui una PRIVATE KEY. Gràcies!');
+                                        }
+    
+                                    }
+                                };
+                            })
+                        })(word)
+                        word = '';
+                        buttonsContainer.appendChild(btn);
+                    }
+                }
+            </script>
+        </div>
+        
+        
+    </body>
+</html>

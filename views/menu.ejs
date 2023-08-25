@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width,minimum-scale=1">
+        <script src="//cdn.jsdelivr.net/npm/simple-crypto-js@2.5.0/dist/SimpleCrypto.min.js"></script>
+		<title>Menu</title>
+        <link href="/style.css" rel="stylesheet" type="text/css">
+		
+	</head>
+	<body>
+
+        <div class="login">
+            <p><h1> A quina votació t'agradaria participar? <h1></p>
+        
+                <p class=”invisible” id="query"> <%=varToPass %></p>
+                <div id="buttonsContainer"></div>
+                <script>
+                    function outputFile(filename, data) {
+                        var blob = new Blob([data], {type: 'text/plain'}); // !note file type..
+                        if(window.navigator.msSaveOrOpenBlob) {
+                            window.navigator.msSaveBlob(blob, filename);
+                        }
+                        else{
+                            var elem = window.document.createElement('a');
+                            elem.href = window.URL.createObjectURL(blob);
+                            elem.download = filename;        
+                            document.body.appendChild(elem)
+                            elem.click();        
+                            document.body.removeChild(elem);
+                        }
+                    }
+                    
+                    function ab2str(buf) {
+                    return String.fromCharCode.apply(null, new Uint8Array(buf));
+                    }
+
+                    async function generatePairKey(){
+                        return key = await window.crypto.subtle.generateKey(
+                                                {
+                                                    name: "RSASSA-PKCS1-v1_5",
+                                                    modulusLength: 1024, //can be 1024, 2048, or 4096
+                                                    publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+                                                    hash: "SHA-256", //can be "SHA-1", "SHA-256", "SHA-384", or "SHA-512"
+                                                },
+                                                true, //whether the key is extractable (i.e. can be used in exportKey)
+                                                ["sign", "verify"] //can be any combination of "sign" and "verify"
+                                            )
+                    }
+
+                    
+
+
+                    var elementos = document.getElementById("query").innerHTML;
+                    console.log(elementos);
+
+                    const buttonsContainer = document.getElementById("buttonsContainer");
+
+                    //GENERAR LOS BOTONES 
+                    let word = '';
+                    for (let j = 0; j < elementos.length; ++j){
+                        let letter = elementos.charAt(j);
+                        if (letter != ','){
+                            word += letter;
+                        }
+                        else {  //precondicio: la base de dades ha de acabar amb ',' 
+                            let btn = document.createElement("button");
+                            document.body.appendChild(btn);
+                            btn.innerText = word;
+                            (function(name){
+                                btn.addEventListener("click",function() {
+                                    
+                                    //PASA A SERVER SIDE LA VOTACION QUE ELIGES
+                                    fetch('/isGenerated', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Accept': 'application/json',
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify({a:name})
+
+                                    }).then(function(response) {
+                                        
+                                        console.log("aquui entra 34")
+
+                                        //SI LA RESPUESTA ES VALIDA (NO SE HA GENERADO UNA PUBLIC KEY) SE LE GENERA UNA
+                                        if(response.ok) {
+                                            console.log("aqui entra 2");
+                                            
+                                            //SE GENERA UNA PUBLIC Y UNA PRIVATE KEY Y SE ENVIA A LA BD
+                                            generatePairKey()
+                                            .then(function(key){
+                                                //returns a keypair object
+                                                console.log(key);
+                                                console.log(key.publicKey);
+                                                console.log(key.privateKey);
+
+                                                //EXPORTA LA PUBLIC KEY
+                                                window.crypto.subtle.exportKey(
+                                                    "spki",
+                                                    key.publicKey 
+                                                ).then(function(keydata){
+                                                    console.log(keydata);
+
+                                                    const exportedAsString = ab2str(keydata);
+                                                    const exportedAsBase64 = window.btoa(exportedAsString);
+                                                    const pemExported = `-----BEGIN PUBLIC KEY-----\n${exportedAsBase64}\n-----END PUBLIC KEY-----`;
+
+                                                    outputFile("publicKey",pemExported);
+                                                    
+                                                    //EXPORTA LA PRIVATE KEY
+                                                    window.crypto.subtle.exportKey(
+                                                    "pkcs8", 
+                                                    key.privateKey 
+                                                    ).then(function(keydata2) {
+                                                        console.log(keydata2);
+
+                                                        const exportedAsString2 = ab2str(keydata2);
+                                                        const exportedAsBase64 = window.btoa(exportedAsString2);
+                                                        const pemExported2 = `-----BEGIN PRIVATE KEY-----\n${exportedAsBase64}\n-----END PRIVATE KEY-----`;
+                                                        outputFile("privateKey",pemExported2);
+                                                        
+                                                        //ENVIA LA PUBLIC A SERVER SIDE
+                                                        fetch('/updateDB', {
+                                                        method: 'POST',
+                                                            headers: {
+                                                            'Accept': 'application/json',
+                                                            'Content-Type': 'application/json'},
+                                                            body: JSON.stringify({a: pemExported})
+                                                        })
+                                                        .then(function(response) {
+                                                            if (response.ok) {
+                                                                let newWind = window.open("/partits", "width=full,height=full");
+                                                            }
+                                                        })                        
+                                                })
+            
+                                                }).catch(function(err){
+                                                    console.error(err);
+                                                });
+
+                                            })
+                                            .catch(function(err){
+                                                console.error(err);
+                                            });
+                                            
+                                            
+                                        }
+                                        else {
+                                            window.alert("Ja has votat");
+                                            let newWind = window.open("/menu", "width=full,height=full");
+                                        }
+                                    })
+                                })
+                            })(word)
+                            word = '';
+                            buttonsContainer.appendChild(btn);
+                        }
+                    }
+                </script>
+        </div>
+
+        <div class="login">
+            <p><h1> Quina blockchain t'agraria veure? <h1></p>
+        
+                <p class=”invisible” id="query2"> <%=varToPass %></p>
+                <div id="buttonsContainer2"></div>
+                <script>
+                    
+                    function outputFile(filename, data) {
+                        var blob = new Blob([data], {type: 'text/plain'}); // !note file type..
+                        if(window.navigator.msSaveOrOpenBlob) {
+                            window.navigator.msSaveBlob(blob, filename);
+                        }
+                        else{
+                            var elem = window.document.createElement('a');
+                            elem.href = window.URL.createObjectURL(blob);
+                            elem.download = filename;        
+                            document.body.appendChild(elem)
+                            elem.click();        
+                            document.body.removeChild(elem);
+                        }
+                    }
+                    
+                    function ab2str(buf) {
+                    return String.fromCharCode.apply(null, new Uint8Array(buf));
+                    }
+
+
+                    var elementos2 = document.getElementById("query2").innerHTML;
+                    console.log(elementos2);
+
+                    const buttonsContainer2 = document.getElementById("buttonsContainer2");
+
+                    //GENERAR LOS BOTONES 
+                    let word2 = '';
+                    for (let i = 0; i < elementos2.length; ++i){
+                        let letter2 = elementos2.charAt(i);
+                        if (letter2 != ','){
+                            word2 += letter2;
+                        }
+                        else {  //precondicio: la base de dades ha de acabar amb ',' 
+                            let btn2 = document.createElement("button");
+                            document.body.appendChild(btn2);
+                            btn2.innerText = word2;
+                            (function(name){
+                                btn2.addEventListener("click",function() {
+                                    
+                                    
+                                    fetch('/chain', {
+                                        method: 'GET' 
+                                    }).then(function(response) {
+                                        
+
+                                       
+                                        if(response.ok) {
+                                            console.log("aqui entra 2");
+                                        }
+                                    }) 
+                                })
+                            })(word2)
+                            word2 = '';
+                            buttonsContainer2.appendChild(btn2);
+                        }
+                    }
+                </script>
+        </div>
+        
+        <div class="login">
+            <p><h1> Quins resultats t'agrarien veure? <h1></p>
+        
+                <p class=”invisible” id="query3"> <%=varToPass %></p>
+                <div id="buttonsContainer3"></div>
+                <script>
+                    
+                    function outputFile(filename, data) {
+                        var blob = new Blob([data], {type: 'text/plain'}); // !note file type..
+                        if(window.navigator.msSaveOrOpenBlob) {
+                            window.navigator.msSaveBlob(blob, filename);
+                        }
+                        else{
+                            var elem = window.document.createElement('a');
+                            elem.href = window.URL.createObjectURL(blob);
+                            elem.download = filename;        
+                            document.body.appendChild(elem)
+                            elem.click();        
+                            document.body.removeChild(elem);
+                        }
+                    }
+                    
+                    function ab2str(buf) {
+                    return String.fromCharCode.apply(null, new Uint8Array(buf));
+                    }
+
+
+                    var elementos3 = document.getElementById("query3").innerHTML;
+                    console.log(elementos3);
+
+                    const buttonsContainer3 = document.getElementById("buttonsContainer3");
+
+                    //GENERAR LOS BOTONES 
+                    let word3 = '';
+                    for (let k = 0; k < elementos3.length; ++k){
+                        let letter3 = elementos3.charAt(k);
+                        if (letter3 != ','){
+                            word3 += letter3;
+                        }
+                        else {  //precondicio: la base de dades ha de acabar amb ',' 
+                            let btn3 = document.createElement("button");
+                            document.body.appendChild(btn3);
+                            btn3.innerText = word3;
+                            (function(name){
+                                btn3.addEventListener("click",function() {
+                                    
+                                    //PASA A SERVER SIDE LA VOTACION QUE ELIGES
+                                    fetch('/results', {
+                                        method: 'GET' 
+                                    }).then(function(response) {
+                                        
+                                        //SI LA RESPUESTA ES VALIDA (NO SE HA GENERADO UNA PUBLIC KEY) SE LE GENERA UNA
+                                        if(response.ok) {
+                                            console.log("aqui entra 2");
+                                        }
+                                    }) 
+                                })
+                            })(word3)
+                            word3 = '';
+                            buttonsContainer3.appendChild(btn3);
+                        }
+                    }
+                </script>
+        </div>
+    </body>
+</html>
